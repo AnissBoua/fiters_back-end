@@ -20,22 +20,44 @@ class TaskController extends AbstractController
     public function postTasks(Request $request): JsonResponse
     {
         $tasksObject = json_decode(file_get_contents("./resources/task.json"), true);
+        $listsObject = json_decode(file_get_contents("./resources/list.json"), true);
+
         $data = json_decode($request->getContent(), true);
+        $listTasks = $listsObject["lists"][$data["listID"]]["tasks"];
 
         $id = array_key_last($tasksObject["tasks"]) + 1;
         $data = array("id" => $id) + $data;
+        $data = $data + array("done" => false);
 
+        $listsObject["lists"][$data["listID"]]["tasks"][array_key_last($listTasks) + 1] = $data;
         $tasksObject["tasks"][$id] = $data;
         $newTask = json_encode($tasksObject);
+        $updatedListsObject = json_encode($listsObject);
+
         file_put_contents("./resources/task.json", $newTask);
+        file_put_contents("./resources/list.json", $updatedListsObject);
+
 
         return new JsonResponse($data, 201);
     }
 
     #[Route('/deletetasks/{id}', name: 'deleteTask', methods: ['DELETE'])]
-    public function deleteTasks($id): JsonResponse
+    public function deleteTasks($id, $deletingList = false): JsonResponse
     {
         $tasksObject = json_decode(file_get_contents("./resources/task.json"), true);
+
+        if (!$deletingList) {
+            $listsObject = json_decode(file_get_contents("./resources/list.json"), true);
+
+            $listTasks = $listsObject["lists"][$tasksObject["tasks"][$id]["listID"]]["tasks"];
+
+            for ($i = 1; $i <= count($listTasks); $i++) {
+                if (isset($listTasks[$i]) && $listTasks[$i]["id"] == $id) {
+                    unset($listsObject["lists"][$tasksObject["tasks"][$id]["listID"]]["tasks"][$i]);
+                };
+            }
+            file_put_contents("./resources/list.json", json_encode($listsObject));
+        }
 
         if (isset($tasksObject["tasks"][$id])) {
             unset($tasksObject["tasks"][$id]);
@@ -44,6 +66,7 @@ class TaskController extends AbstractController
         }
 
         file_put_contents("./resources/task.json", json_encode($tasksObject));
+
 
         return new JsonResponse($tasksObject, 202);
     }
